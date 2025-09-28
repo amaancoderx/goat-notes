@@ -48,9 +48,8 @@ export async function updateSession(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
     if (user) {
-      return NextResponse.redirect(
-        new URL("/", process.env.NEXT_PUBLIC_BASE_URL),
-      );
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin;
+      return NextResponse.redirect(new URL("/", baseUrl));
     }
   }
 
@@ -62,9 +61,15 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if (user) {
-      const { newestNoteId } = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/fetch-newest-note?userId=${user.id}`,
-      ).then((res) => res.json());
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin;
+
+      // Ensure baseUrl has protocol
+      const fullBaseUrl = baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`;
+
+      try {
+        const { newestNoteId } = await fetch(
+          `${fullBaseUrl}/api/fetch-newest-note?userId=${user.id}`,
+        ).then((res) => res.json());
 
       if (newestNoteId) {
         const url = request.nextUrl.clone();
@@ -72,7 +77,7 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url);
       } else {
         const { noteId } = await fetch(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/create-new-note?userId=${user.id}`,
+          `${fullBaseUrl}/api/create-new-note?userId=${user.id}`,
           {
             method: "POST",
             headers: {
@@ -83,6 +88,10 @@ export async function updateSession(request: NextRequest) {
         const url = request.nextUrl.clone();
         url.searchParams.set("noteId", noteId);
         return NextResponse.redirect(url);
+      }
+      } catch (error) {
+        console.error("Middleware API call failed:", error);
+        // Continue without redirect if API calls fail
       }
     }
   }
